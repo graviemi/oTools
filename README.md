@@ -15,14 +15,14 @@ Already a pro? Just edit this README.md and make it your own. Want to make it ea
 
 ```
 cd existing_repo
-git remote add origin https://gricad-gitlab.univ-grenoble-alpes.fr/OSUG/web/oTools.git
+git remote add origin https://gricad-gitlab.univ-grenoble-alpes.fr/OSUG/web/otools.git
 git branch -M main
 git push -uf origin main
 ```
 
 ## Integrate with your tools
 
-- [ ] [Set up project integrations](https://gricad-gitlab.univ-grenoble-alpes.fr/OSUG/web/oTools/-/settings/integrations)
+- [ ] [Set up project integrations](https://gricad-gitlab.univ-grenoble-alpes.fr/OSUG/web/otools/-/settings/integrations)
 
 ## Collaborate with your team
 
