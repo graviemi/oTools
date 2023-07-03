@@ -16,6 +16,7 @@ class connection
 	protected $ssl_key;
 	protected $ssl_cert;
 	protected $ssl_ca;
+	public $last_query = ''; 
 	public $show = false;
 
 	public function __construct(string $address,string $login,string $password,string $ssl_key = null,string $ssl_cert = null,string $ssl_ca = null)
@@ -156,7 +157,7 @@ class connection
 		return $this->mysqli->affected_rows;
 	}
 
-	public function query($query, $mode = result::ASSOC)
+	public function query(string $query, int $mode = result::ASSOC)
 	{
 		if ($this->show)
 		{
@@ -164,6 +165,7 @@ class connection
 			return 0;
 		}
 		$this->_connect();
+		$this->last_query = $query;
 		$result = $this->mysqli->query($query);
 		if ($result === false)
 			throw new exception($this->mysqli->error.PHP_EOL.$query);
