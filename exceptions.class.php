@@ -4,7 +4,7 @@ namespace oTools;
 
 use Exception;
 
-abstract class oExceptions extends Exception
+abstract class exceptions extends Exception
 {
 	public function __construct(string $string,...$args)
 	{

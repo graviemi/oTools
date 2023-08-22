@@ -11,6 +11,11 @@ class simple implements identifier
 		$this->id = $id;
 	}
 
+	public function exists()
+	{
+		return true;
+	}
+
 	public function isSet()
 	{
 		return true;

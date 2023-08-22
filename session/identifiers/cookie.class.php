@@ -22,6 +22,11 @@ class cookie implements identifier
 		$this->httponly = $httponly;
 	}
 
+	public function exists()
+	{
+		return isset($_COOKIE[$this->name]);
+	}
+
 	public function isSet()
 	{
 		return (! is_null($this->id));

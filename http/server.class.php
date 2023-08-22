@@ -142,4 +142,9 @@ class server
 			$url .= rawurlencode($part).'/';
 		return substr($url,0,-1);
 	}
+
+	public static function current_site_url()
+	{
+		return sprintf('%s://%s/',isset($_SERVER['HTTPS'])?'https':'http',$_SERVER['HTTP_HOST']);
+	} 
 }
