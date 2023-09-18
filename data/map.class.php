@@ -1,12 +1,12 @@
 <?php
 
-namespace oTools\oData;
+namespace oTools\data;
 
 use iterator,
 	arrayaccess,
 	countable;
 
-class oArray implements iterator,arrayaccess,countable
+class map implements iterator,arrayaccess,countable
 {
 	protected $data;
 	protected $index;
