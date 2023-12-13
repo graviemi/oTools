@@ -1,4 +1,5 @@
 test:
         stage: test
+        image: ubuntu/latest
         script:
-                - lsb_release -a
+                - ls /usr/bin
