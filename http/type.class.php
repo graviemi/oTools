@@ -1,6 +1,6 @@
 <?php
 
-namespace oTools/http;
+namespace oTools\http;
 
 class type
 {
