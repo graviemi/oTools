@@ -86,4 +86,9 @@ class map implements iterator,arrayaccess,countable
 	{
 		return ($this->index < count($this->data));
 	}
+
+	public function implode(string $glue) : string
+	{
+		return implode($glue,$this->data);
+	}
 }
