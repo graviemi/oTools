@@ -37,52 +37,52 @@ class result implements iterator,arrayaccess,countable
 
 	}
 
-	public function offsetExists($index)
+	public function offsetExists($index): bool
 	{
 		return $index < $this->result->num_rows;
 	}
 
-	public function offsetGet($index)
+	public function offsetGet($index): mixed
 	{
 		$this->result->data_seek($this->index = $index);
 		$this->_fetch();
 		return $this->current;
 	}
 
-	public function offsetSet($key,$value)
+	public function offsetSet($key,$value): void
 	{}
 
-	public function offsetUnset($key)
+	public function offsetUnset($key): void
 	{}
 
-	public function count()
+	public function count(): int
 	{
 		return $this->result->num_rows;
 	}
 
-	public function current()
+	public function current(): mixed
 	{
 		return $this->current;
 	}
 
-	public function key()
+	public function key(): mixed
 	{
 		return $this->index;
 	}
 
-	public function next()
+	public function next(): void
 	{
 		$this->index++;
 		$this->_fetch();
 	}
 
-	public function rewind()
+	public function rewind(): void
 	{
 		$this->result->data_seek($this->index = 0);
 		$this->_fetch();
 	}
 
-	public function valid()
+	public function valid(): bool
 	{
 		return $this->index < $this->result->num_rows;
 	}
