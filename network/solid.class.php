@@ -47,7 +47,7 @@ class solid
 	protected function _delete(string $url) : array
 	{
 		$response = $this->http_client->delete($url,$this->credentials);
-		if ($this->http_client->code() === 200)
+		if ($this->http_client->code() === 201)
 			return json_decode($response,true,10,JSON_THROW_ON_ERROR);
 		throw new exception('HTTP request error code %d : %s',$this->http_client->code(),$response);
 	}
