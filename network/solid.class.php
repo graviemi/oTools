@@ -10,14 +10,14 @@ class solid
 	protected $credentials;
 	protected $http_client;
 
-	public function __construct(string $host, string $user, string $password)
+	public function __construct(string $host, string $user, string $password, client|null $client = null)
 	{
 		$this->host = $host;
 		$this->credentials = [
 			sprintf('X-IPM-Username: %s',base64_encode($user)),
 			sprintf('X-IPM-Password: %s',base64_encode($password))
 		];
-		$this->http_client = new client();
+		$this->http_client = $client ?? (new client());
 	}
 
 	protected function _url(string $verb, array $parameters)
@@ -47,7 +47,7 @@ class solid
 	protected function _delete(string $url) : array
 	{
 		$response = $this->http_client->delete($url,$this->credentials);
-		if ($this->http_client->code() === 201)
+		if ($this->http_client->code() === 200)
 			return json_decode($response,true,10,JSON_THROW_ON_ERROR);
 		throw new exception('HTTP request error code %d : %s',$this->http_client->code(),$response);
 	}
