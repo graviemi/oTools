@@ -19,17 +19,17 @@ class text implements iterator
 		$this->length = strlen($contents);
 	}
 
-	public function current()
+	public function current(): mixed
 	{
 		return $this->line;
 	}
 
-	public function key()
+	public function key(): mixed
 	{
 		return $this->index;
 	}
 
-	public function next()
+	public function next(): void
 	{
 		$this->position += $this->increment;
 		if (preg_match('/\G([^\r\n]*)(\r|\n|\r\n)?/',$this->contents,$matches,0,$this->position))
@@ -40,7 +40,7 @@ class text implements iterator
 		}
 	}
 
-	public function rewind()
+	public function rewind(): void
 	{
 		$this->position = 0;
 		$this->index = 0;
@@ -51,7 +51,7 @@ class text implements iterator
 		}
 	}
 
-	public function valid()
+	public function valid(): bool
 	{
 		return $this->position < $this->length;
 	}
