@@ -59,8 +59,10 @@ class solid
 
 	public function ip_alias_list(int $ip_id, array $parameters = []) : array
 	{
-		$parameters['ip_id'] = $ip_id;
-		return $this->_get($this->_url('ip_alias_list',$parameters));
+		$params['ip_id'] = $ip_id;
+		foreach ($parameters as $name => $value)
+			$params[$name] = $value;
+		return $this->_get($this->_url('ip_alias_list',$params));
 	}
 
 	public function ip_alias_count(int $ip_id, array $parameters = []) : array
