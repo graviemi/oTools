@@ -7,6 +7,7 @@ use oTools\data\text;
 class client
 {
 	protected $ch;
+	protected array $request_header = [];
 	protected string $response;
 	protected text $body;
 	protected array $infos;
@@ -17,8 +18,7 @@ class client
 	protected array $options = [
 		CURLOPT_FOLLOWLOCATION => true,
 		CURLOPT_MAXREDIRS => 3,
-		CURLOPT_CONNECTTIMEOUT => 5,
-		CURLOPT_HEADER => false
+		CURLOPT_CONNECTTIMEOUT => 5
 	];
 
 	public function __construct()
@@ -32,56 +32,41 @@ class client
 			curl_close($this->ch);
 	} 
 
-	protected function _init()
+	protected function _header($ch, string $header) : int
+	{
+		if (preg_match('|^([^ :]+) *: *([^\n\r]+)\r\n|',$header,$matches))
+			$this->header[strtolower($matches[1])] = $matches[2];
+		return strlen($header);
+	}
+
+	protected function _exec(string $url)
 	{
 		if ($this->ch === null)
 		{
-			$this->ch = curl_init();
-			curl_setopt_array($this->ch, $this->options);
+			if (($this->ch = curl_init()) === false)
+				throw new exception('curl init failed');	
 		}
-	}
-
-	protected function _url(string $url)
-	{
-		curl_setopt($this->ch, CURLOPT_URL, $url);
-	}
-
-	protected function _parse_header(int $position) : int
-	{
-		if (preg_match('|\G(http/\d.\d) (\d+) (.*)\r\n|i', $this->response, $matches, 0, $position))
-			$position += strlen($matches[0]);
 		else
-			throw new exception('Unexpected response header.');
-		while (preg_match('|\G([^ ]+) *: *([^\n\r]+)\r\n|', $this->response, $matches, 0, $position))
-		{
-			$this->header[strtolower($matches[1])] = $matches[2];
-			$position += strlen($matches[0]);
-		}
-		return $position;
-	}
-
-	protected function _parse_headers(int $length)
-	{
-		$position = $this->_parse_header(0);
-		while ($position < $length)
-		{
-			if (substr($this->response,$position,2) !== "\r\n")
-				throw new exception('missing empty line between headers. %s',$this->_hexa(substr($this->response,$position,2)));
-			$position += 2;
-			$this->redirect[] = $this->header;
-			$this->header = [];
-			$position = $this->_parse_header($position);
-		}
-	}
-
-	protected function _exec()
-	{
+			curl_reset($this->ch);
+		curl_setopt_array($this->ch, $this->options);
+		curl_setopt($this->ch, CURLOPT_URL, $url);
+		curl_setopt($this->ch, CURLOPT_HEADER, false);
+		curl_setopt($this->ch, CURLOPT_HEADERFUNCTION, [$this,'_header']);
+		curl_setopt($this->ch, CURLOPT_HTTPHEADER, $this->request_header);
 		$this->response = curl_exec($this->ch);
 		$this->infos = curl_getinfo($this->ch);
-		$this->_parse_headers($this->infos['header_size'] - 2);
-		$this->body = new text(substr($this->response,$this->infos['header_size']));
+		$this->body = new text($this->response);
 		if(curl_errno($this->ch))
 			throw new exception('Curl: '.curl_error($this->ch));
+	}
+
+	protected function resetOptions()
+	{
+		$this->options = [
+			CURLOPT_FOLLOWLOCATION => true,
+			CURLOPT_MAXREDIRS => 3,
+			CURLOPT_CONNECTTIMEOUT => 5
+		];
 	}
 
 	public function setOption(int $option, $value)
@@ -89,7 +74,18 @@ class client
 		$this->options[$option] = $value;
 	}
 
-	public function &getInfos() : array
+	public function setHeader(string $name, string $value)
+	{
+		$name = strtolower($name);
+		$this->request_header[$name] = sprintf('%s: %s',$name,$value);
+	}
+
+	public function getHeader() : array
+	{
+		return $this->header;
+	}
+
+	public function getInfos() : array
 	{
 		return $this->infos;
 	}
@@ -101,31 +97,19 @@ class client
 
 	public function resolv(string $url) : string
 	{
-		$this->_init();
-		$this->_url($url);
-		curl_setopt($this->ch, CURLOPT_NOBODY, true);
-		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
-		curl_setopt($this->ch, CURLOPT_MAXREDIRS, 16);
-		curl_exec($this->ch);
+		$this->resetOptions();
+		$this->setOption(CURLOPT_NOBODY, true);
+		$this->_exec($url);
 		$target = curl_getinfo($this->ch,CURLINFO_EFFECTIVE_URL);
-		curl_setopt_array($this->ch, $this->options);
 		return $target;
 	}
 
-	public function get(string $url, array $headers = []) : text
+	public function get(string $url) : text
 	{
-		$this->_init();
-		$this->_url($url);
-		curl_setopt($this->ch, CURLOPT_HTTPGET, true);
-		curl_setopt($this->ch, CURLOPT_HTTPHEADER,$headers);
-		curl_setopt($this->ch, CURLOPT_RETURNTRANSFER,true);
-		curl_setopt($this->ch, CURLOPT_HEADER, true);
-		$this->response = curl_exec($this->ch);
-		$this->infos = curl_getinfo($this->ch);
-		$this->_parse_headers($this->infos['header_size'] - 2);
-		$this->body = new text(substr($this->response,$this->infos['header_size']));
-		if(curl_errno($this->ch))
-			throw new exception('Curl: '.curl_error($this->ch));
+		$this->resetOptions();
+		$this->setOption(CURLOPT_HTTPGET, true);
+		$this->setOption(CURLOPT_RETURNTRANSFER,true);
+		$this->_exec($url);
 		return $this->body;
 	}
 
@@ -140,20 +124,15 @@ class client
 			$tmp_path = $path.'.'.uniqid();
 		if (($fh = fopen($tmp_path,'w')) !== false)
 		{
-			$this->_init();
-			$this->_url($url);
-			curl_setopt($this->ch, CURLOPT_HTTPGET, true);
-			curl_setopt($this->ch, CURLOPT_FILE,$fh);
-			curl_setopt($this->ch, CURLOPT_HEADER, false);
+			$this->resetOptions();
+			$this->setOption(CURLOPT_HTTPGET, true);
+			$this->setOption(CURLOPT_FILE,$fh);
 			if (is_file($path))
 			{
-				curl_setopt($this->ch,CURLOPT_TIMECONDITION,CURL_TIMECOND_IFMODSINCE);
-				curl_setopt($this->ch,CURLOPT_TIMEVALUE,filemtime($path));
+				$this->setOption(CURLOPT_TIMECONDITION,CURL_TIMECOND_IFMODSINCE);
+				$this->setOption(CURLOPT_TIMEVALUE,filemtime($path));
 			}
-			curl_exec($this->ch);
-			$this->infos = curl_getinfo($this->ch);
-			$this->header = [];
-			$this->body = new text('');
+			$this->_exec($url);
 			if ($this->infos['http_code'] === 304)
 				unlink($tmp_path);
 			elseif ($this->infos['http_code'] === 200)
@@ -166,57 +145,33 @@ class client
 			throw new exception('Error opening file \'%s\' for writing.',$tmp_path);
 	}
 
-	public function post(string $url, array $data, array $headers = []) : text
+	public function post(string $url, array $data) : text
 	{
-		$this->_init();
-		$this->_url($url);
-		curl_setopt($this->ch,CURLOPT_POST,true);
-		curl_setopt($this->ch,CURLOPT_HTTPHEADER,$headers);
-		curl_setopt($this->ch,CURLOPT_RETURNTRANSFER,true);
-		curl_setopt($this->ch,CURLOPT_POSTFIELDS,$data);
-		curl_setopt($this->ch, CURLOPT_HEADER, true);
-		$this->response = curl_exec($this->ch);
-		$this->infos = curl_getinfo($this->ch);
-		$this->_parse_headers($this->infos['header_size'] - 2);
-		$this->body = new text(substr($this->response,$this->infos['header_size']));
-		if(curl_errno($this->ch))
-			throw new exception('Curl: '.curl_error($this->ch));
+		$this->resetOptions();
+		$this->setOption(CURLOPT_POST,true);
+		$this->setOption(CURLOPT_POSTFIELDS,$data);
+		$this->setOption(CURLOPT_RETURNTRANSFER,true);
+		$this->_exec($url);
 		return $this->body;
 	}
 
-	public function put(string $url, string $data, array $headers = []) : text
+	public function put(string $url, string $data) : text
 	{
-		$headers[] = sprintf('Content-Length: %d',strlen($data));
-		$this->_init();
-		$this->_url($url);
-		curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST,'PUT');
-		curl_setopt($this->ch, CURLOPT_HTTPHEADER,$headers);
-		curl_setopt($this->ch, CURLOPT_RETURNTRANSFER,true);
-		curl_setopt($this->ch, CURLOPT_POSTFIELDS,$data);
-		curl_setopt($this->ch, CURLOPT_HEADER, true);
-		$this->response = curl_exec($this->ch);
-		$this->infos = curl_getinfo($this->ch);
-		$this->_parse_headers($this->infos['header_size'] - 2);
-		$this->body = new text(substr($this->response,$this->infos['header_size']));
-		if(curl_errno($this->ch))
-			throw new exception('Curl: '.curl_error($this->ch));
+		$this->resetOptions();
+		$this->setOption(CURLOPT_CUSTOMREQUEST,'PUT');
+		$this->setOption(CURLOPT_RETURNTRANSFER,true);
+		$this->setOption(CURLOPT_POSTFIELDS,$data);
+		$this->setHeader('content-length',strlen($data));
+		$this->_exec($url);
 		return $this->body;
 	}
 
 	public function delete(string $url, array $headers = []) : text
 	{
-		$this->_init();
-		$this->_url($url);
-		curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST,'DELETE');
-		curl_setopt($this->ch, CURLOPT_HTTPHEADER,$headers);
-		curl_setopt($this->ch, CURLOPT_RETURNTRANSFER,true);
-		curl_setopt($this->ch, CURLOPT_HEADER, true);
-		$this->response = curl_exec($this->ch);
-		$this->infos = curl_getinfo($this->ch);
-		$this->_parse_headers($this->infos['header_size'] - 2);
-		$this->body = new text(substr($this->response,$this->infos['header_size']));
-		if(curl_errno($this->ch))
-			throw new exception('Curl: '.curl_error($this->ch));
+		$this->resetOptions();
+		$this->setOption(CURLOPT_CUSTOMREQUEST,'DELETE');
+		$this->setOption(CURLOPT_RETURNTRANSFER,true);
+		$this->_exec($url);
 		return $this->body;
 	}
 }
