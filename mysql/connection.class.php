@@ -68,6 +68,19 @@ class connection
 		return $status;
 	}
 
+	public function error() : string
+	{
+		if ($this->mysqli !== null)
+			return $this->mysqli->error;
+		return '';
+	}
+
+	protected function _escape(string $str) : string
+	{
+		$this->_connect();
+		return $this->mysqli->real_escape_string($str);
+	}
+
 	public function base($name)
 	{
 		return new base($name,$this);
@@ -90,17 +103,21 @@ class connection
 
 	public function database_exists($name)
 	{
-		$result = $this->query(sprintf('SHOW DATABASES LIKE \'%s\'',$name));
+		$result = $this->query(sprintf('SHOW DATABASES WHERE database = \'%s\'',$this->_escape($name)));
 		return (count($result) === 1);
 	}
 
 	public function database_drop($name,$if_exists = true)
 	{
-		return $this->query(sprintf('DROP DATABASE%s `%s`',($if_exists)?' IF EXISTS':'',$name));
+		if (! preg_match('|^[\x20-\x5F\x61-\xFE]{1,64}$|', $name))
+			throw new exception('unauthorized database name "%s"',$name);
+		return $this->query(sprintf('DROP DATABASE%s `%s`',($if_exists)?' IF EXISTS':'',$this->_escape($name)));
 	}
 
 	public function database_create($name,$if_not_exists = true)
 	{
+		if (! preg_match('|^[\x20-\x5F\x61-\xFE]{1,64}$|', $name))
+			throw new exception('unauthorized database name "%s"',$name);
 		return $this->query(sprintf('CREATE DATABASE%s `%s`',($if_not_exists)?' IF NOT EXISTS':'',$name));
 	}
 
