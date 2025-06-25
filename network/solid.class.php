@@ -7,17 +7,14 @@ use oTools\network\http\client;
 class solid
 {
 	protected $host;
-	protected $credentials;
 	protected $http_client;
 
 	public function __construct(string $host, string $user, string $password, client|null $client = null)
 	{
 		$this->host = $host;
-		$this->credentials = [
-			sprintf('X-IPM-Username: %s',base64_encode($user)),
-			sprintf('X-IPM-Password: %s',base64_encode($password))
-		];
 		$this->http_client = $client ?? (new client());
+		$this->http_client->setHeader('X-IPM-Username',base64_encode($user));
+		$this->http_client->setHeader('X-IPM-Password',base64_encode($password));
 	}
 
 	protected function _url(string $verb, array $parameters)
@@ -30,7 +27,7 @@ class solid
 
 	protected function _get(string $url) : array
 	{
-		$response = $this->http_client->get($url,$this->credentials);
+		$response = $this->http_client->get($url);
 		if ($this->http_client->code() === 200)
 			return json_decode($response,true,10,JSON_THROW_ON_ERROR);
 		throw new exception('HTTP request error code %d : %s',$this->http_client->code(),$response);
@@ -38,7 +35,7 @@ class solid
 
 	protected function _post(string $url, array $data = []) : array
 	{
-		$response = $this->http_client->post($url,$data,$this->credentials);
+		$response = $this->http_client->post($url,$data);
 		if ($this->http_client->code() === 201)
 			return json_decode($response,true,10,JSON_THROW_ON_ERROR);
 		throw new exception('HTTP request error code %d : %s',$this->http_client->code(),$response);
@@ -46,7 +43,7 @@ class solid
 
 	protected function _delete(string $url) : array
 	{
-		$response = $this->http_client->delete($url,$this->credentials);
+		$response = $this->http_client->delete($url);
 		if ($this->http_client->code() === 200)
 			return json_decode($response,true,10,JSON_THROW_ON_ERROR);
 		throw new exception('HTTP request error code %d : %s',$this->http_client->code(),$response);
@@ -78,6 +75,7 @@ class solid
 
 	public function ip_alias_delete(int $ip_name_id) : array
 	{
+		echo $this->_url('ip_alias_delete',['ip_name_id' => $ip_name_id]).PHP_EOL;
 		return $this->_delete($this->_url('ip_alias_delete',['ip_name_id' => $ip_name_id]));
 	}
 }

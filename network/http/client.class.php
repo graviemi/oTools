@@ -166,7 +166,7 @@ class client
 		return $this->body;
 	}
 
-	public function delete(string $url, array $headers = []) : text
+	public function delete(string $url) : text
 	{
 		$this->resetOptions();
 		$this->setOption(CURLOPT_CUSTOMREQUEST,'DELETE');
