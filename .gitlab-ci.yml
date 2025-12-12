@@ -1,5 +1,0 @@
-test:
-        stage: test
-        image: ubuntu:latest
-        script:
-                - ls /usr/bin
