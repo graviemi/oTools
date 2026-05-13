@@ -6,11 +6,16 @@ use oTools\data\text;
 
 class client
 {
+	protected static $methods = [
+		'basic' => CURLAUTH_BASIC,
+		'digest' => CURLAUTH_DIGEST
+	];
 	protected $ch;
 	protected array $request_header = [];
 	protected string $response;
 	protected text $body;
 	protected array $infos;
+	public string $http;
 	protected array $header;
 	protected array $redirect = [];
 	protected int $error_number;
@@ -34,6 +39,11 @@ class client
 
 	protected function _header($ch, string $header) : int
 	{
+		if (preg_match('|^(HTTP.+)$|',$header,$matches))
+		{
+			$this->http = $matches[1];
+			$this->header = [];
+		}
 		if (preg_match('|^([^ :]+) *: *([^\n\r]+)\r\n|',$header,$matches))
 			$this->header[strtolower($matches[1])] = $matches[2];
 		return strlen($header);
@@ -48,7 +58,8 @@ class client
 		}
 		else
 			curl_reset($this->ch);
-		curl_setopt_array($this->ch, $this->options);
+		if (curl_setopt_array($this->ch, $this->options) === false)
+			throw new Exception('Curl: '.curl_error($this->ch));
 		curl_setopt($this->ch, CURLOPT_URL, $url);
 		curl_setopt($this->ch, CURLOPT_HEADER, false);
 		curl_setopt($this->ch, CURLOPT_HEADERFUNCTION, [$this,'_header']);
@@ -57,7 +68,7 @@ class client
 		$this->infos = curl_getinfo($this->ch);
 		$this->body = new text($this->response);
 		if(curl_errno($this->ch))
-			throw new exception('Curl: '.curl_error($this->ch));
+			throw new Exception('Curl: '.curl_error($this->ch));
 	}
 
 	protected function resetOptions()
@@ -72,6 +83,26 @@ class client
 	public function setOption(int $option, $value)
 	{
 		$this->options[$option] = $value;
+	}
+
+	public function setBasicAuth()
+	{
+		$this->setOption(CURLOPT_HTTPAUTH,CURLAUTH_BASIC);
+	}
+
+	public function setDigestAuth()
+	{
+		$this->setOption(CURLOPT_HTTPAUTH,CURLAUTH_DIGEST);
+	}
+
+	public function authenticate(string $method, string $username, string $password)
+	{
+		$method_code = self::$methods[strtolower($method)] ?? null;
+		if ($method_code === null)
+				throw new exception('unknown authentication method "%s"',$method);
+		$this->setOption(CURLOPT_HTTPAUTH,$method_code);
+		$this->setOption(CURLOPT_USERNAME,$username);
+		$this->setOption(CURLOPT_PASSWORD,$password);
 	}
 
 	public function setHeader(string $name, string $value)
@@ -106,7 +137,6 @@ class client
 
 	public function get(string $url) : text
 	{
-		$this->resetOptions();
 		$this->setOption(CURLOPT_HTTPGET, true);
 		$this->setOption(CURLOPT_RETURNTRANSFER,true);
 		$this->_exec($url);
@@ -124,7 +154,6 @@ class client
 			$tmp_path = $path.'.'.uniqid();
 		if (($fh = fopen($tmp_path,'w')) !== false)
 		{
-			$this->resetOptions();
 			$this->setOption(CURLOPT_HTTPGET, true);
 			$this->setOption(CURLOPT_FILE,$fh);
 			if (is_file($path))
@@ -138,7 +167,7 @@ class client
 			elseif ($this->infos['http_code'] === 200)
 				rename($tmp_path,$destination);
 			else
-				throw new exception('Unexpected HTTP code %s.',$this->infos['http_code']);
+				throw new exception('Unexpected HTTP code %s (%s).',$this->infos['http_code'],$this->http);
 			return ($this->infos['http_code'] === 200);
 		}
 		else
