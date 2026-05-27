@@ -22,11 +22,17 @@ class Parser
 
 	// Level 2: tokenises the params fragment of a PROPERTY line (the part after the name).
 	// Input always starts with ';', e.g. ";TZID=America/New_York;RSVP=TRUE"
+	private const DATE_PROPERTIES = [
+		'DTSTART', 'DTEND', 'DTSTAMP', 'DUE', 'COMPLETED',
+		'CREATED', 'LAST-MODIFIED', 'RECURRENCE-ID', 'EXDATE', 'RDATE',
+	];
+
 	private static array $paramRules = [
 		['#\G;([A-Za-z][A-Za-z0-9-]*)=#', 'PARAM_INTRO'],
 		['#\G"([^"]*)"#',                  'QUOTED_VAL'],
 		['#\G([^;,\r\n"]+)#',              'PLAIN_VAL'],
 		['#\G,#',                          'COMMA'],
+		['#\G.#s',                         'SKIP'],
 	];
 
 	private Lexer $lineLexer;
@@ -145,12 +151,15 @@ class Parser
 						break;
 
 					case 'COMMA':
-						// separator between multiple param values — no action needed
+					case 'SKIP':
+					case null:
 						break;
 				}
 			}
 		}
 
-		return new Property(strtoupper($name), $params, $rawValue);
+		$upperName = strtoupper($name);
+		$isDate = in_array($upperName, self::DATE_PROPERTIES, true);
+		return new Property($upperName, $params, $rawValue, $isDate);
 	}
 }
