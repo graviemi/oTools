@@ -12,8 +12,7 @@ class Lexer implements Iterator
 	protected int $length = 0;
 	protected int $position = 0;
 	protected int $index = 0;
-	protected string|null $token = null;
-	protected array $values = [];
+	protected Token|null $token = null;
 	protected bool $valid = false;
 
 	/* rules is an array of arrays
@@ -36,7 +35,7 @@ class Lexer implements Iterator
 
 	public function current(): mixed
 	{
-		return [$this->token,$this->values];
+		return $this->token;
 	}
 
 	public function key(): mixed
@@ -47,7 +46,6 @@ class Lexer implements Iterator
 	public function next(): void
 	{
 		$this->token = null;
-		$this->values = [];
 		$this->valid = $this->position < $this->length;
 		if (! $this->valid)
 			return ;
@@ -57,8 +55,7 @@ class Lexer implements Iterator
 			{
 				$this->position += strlen($matches[0]);
 				$this->index++;
-				$this->token = $rule[1];
-				$this->values = array_slice($matches,1);
+				$this->token = new Token($rule[1], $matches[1] ?? null, $rule[2] ?? null);
 				break;
 			}
 		}

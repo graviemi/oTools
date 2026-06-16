@@ -9,14 +9,13 @@ class Parser
 	// Level 1: one token per content line.
 	// BEGIN_COMP and END_COMP must come before PROPERTY so they are matched first.
 	// SKIP is a catch-all that consumes any line that matches nothing above (e.g. blank lines).
+	// PROPERTY captures the whole line content in a single group; parseLine() re-splits it.
+	// Quoted strings inside params are consumed atomically so that a ':'
+	// inside a quoted param-value is not mistaken for the name/value separator.
 	private static array $lineRules = [
 		['#\GBEGIN:([A-Za-z][A-Za-z0-9-]*)\r?\n#', 'BEGIN_COMP'],
 		['#\GEND:([A-Za-z][A-Za-z0-9-]*)\r?\n#',   'END_COMP'],
-		// Three capture groups: property name | params string | raw value.
-		// The params section is separated from the name by ';' characters.
-		// Quoted strings inside params are consumed atomically so that a ':'
-		// inside a quoted param-value is not mistaken for the name/value separator.
-		['#\G([A-Za-z][A-Za-z0-9-]*)((?:;(?:[^":;\r\n]|"[^"]*")*)*):([^\r\n]*)\r?\n#', 'PROPERTY'],
+		['#\G([A-Za-z][A-Za-z0-9-]*(?:;(?:[^":;\r\n]|"[^"]*")*)*:[^\r\n]*)\r?\n#', 'PROPERTY'],
 		['#\G[^\r\n]*\r?\n#', 'SKIP'],
 	];
 
@@ -62,20 +61,20 @@ class Parser
 		$stack = [];
 		$root = null;
 
-		foreach ($this->lineLexer as [$token, $values])
+		foreach ($this->lineLexer as $token)
 		{
 			if ($token === null)
 				throw new Exception('ICS parse error: no rule matched at current position');
 
-			switch ($token)
+			switch ($token->getName())
 			{
 				case 'BEGIN_COMP':
-					$stack[] = $this->makeComponent(strtoupper($values[0]));
+					$stack[] = $this->makeComponent(strtoupper($token->getValue()));
 					break;
 
 				case 'END_COMP':
 					if (empty($stack))
-						throw new Exception(sprintf('Unexpected END:%s without matching BEGIN', $values[0]));
+						throw new Exception(sprintf('Unexpected END:%s without matching BEGIN', $token->getValue()));
 					$comp = array_pop($stack);
 					if (empty($stack))
 						$root = $comp;
@@ -85,7 +84,7 @@ class Parser
 
 				case 'PROPERTY':
 					if (!empty($stack))
-						end($stack)->addProperty($this->parseLine($values[0], $values[1], $values[2]));
+						end($stack)->addProperty($this->parseLine($token->getValue()));
 					break;
 
 				case 'SKIP':
@@ -121,12 +120,41 @@ class Parser
 		};
 	}
 
-	// Builds a Property from the three parts captured by the PROPERTY token.
-	// $name     : property name (e.g. "DTSTART")
-	// $paramStr : params fragment starting with ';' (e.g. ";TZID=Europe/Paris"), may be empty
-	// $rawValue : raw value string after ':' (e.g. "20240615T100000")
-	private function parseLine(string $name, string $paramStr, string $rawValue) : Property
+	// Builds a Property from the full content of a PROPERTY line :
+	//   NAME[;PARAM=value[;...]]:VALUE
+	// The ':' separator is the first one that is not inside a quoted param value.
+	private function parseLine(string $line) : Property
 	{
+		// Locate the name/value separator (first unquoted ':').
+		$len = strlen($line);
+		$inQuote = false;
+		for ($i = 0; $i < $len; $i++)
+		{
+			$c = $line[$i];
+			if ($c === '"')
+				$inQuote = !$inQuote;
+			elseif ($c === ':' && !$inQuote)
+				break;
+		}
+		if ($i === $len)
+			throw new Exception("Malformed property line: $line");
+
+		$head     = substr($line, 0, $i);
+		$rawValue = substr($line, $i + 1);
+
+		// Split head into name and (optional) params fragment starting with ';'.
+		$semi = strpos($head, ';');
+		if ($semi === false)
+		{
+			$name     = $head;
+			$paramStr = '';
+		}
+		else
+		{
+			$name     = substr($head, 0, $semi);
+			$paramStr = substr($head, $semi);
+		}
+
 		$params = [];
 
 		if ($paramStr !== '')
@@ -134,12 +162,15 @@ class Parser
 			$this->paramLexer->init($paramStr);
 			$currentParam = null;
 
-			foreach ($this->paramLexer as [$token, $values])
+			foreach ($this->paramLexer as $token)
 			{
-				switch ($token)
+				if ($token === null)
+					continue;
+
+				switch ($token->getName())
 				{
 					case 'PARAM_INTRO':
-						$currentParam = strtoupper($values[0]);
+						$currentParam = strtoupper($token->getValue());
 						if (!isset($params[$currentParam]))
 							$params[$currentParam] = [];
 						break;
@@ -147,12 +178,11 @@ class Parser
 					case 'QUOTED_VAL':
 					case 'PLAIN_VAL':
 						if ($currentParam !== null)
-							$params[$currentParam][] = $values[0];
+							$params[$currentParam][] = $token->getValue();
 						break;
 
 					case 'COMMA':
 					case 'SKIP':
-					case null:
 						break;
 				}
 			}
